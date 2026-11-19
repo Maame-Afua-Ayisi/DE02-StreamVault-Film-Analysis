@@ -1,0 +1,144 @@
+"""Fetch TMDb details + credits for every id in id_list.csv.
+
+Usage:
+    export TMDB_API_KEY=your_v3_key        (Windows PowerShell: $env:TMDB_API_KEY="...")
+    python fetch.py
+
+Outputs (all relative to this file):
+    data/raw/{id}_details.json, data/raw/{id}_credits.json   cached responses
+    data/id_ledger.csv        one row per input row: what happened to it
+    data/movies.csv           grain: one row per movie id
+    data/cast.csv             grain: one row per (movie id, cast credit)
+    data/crew.csv             grain: one row per (movie id, crew credit)
+Reruns skip anything already cached, so a 500-title list only fetches new ids.
+"""
+import json
+import os
+import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+import pandas as pd
+import requests
+
+ROOT = Path(__file__).resolve().parent
+RAW = ROOT / "data" / "raw"
+RAW.mkdir(parents=True, exist_ok=True)
+BASE = "https://api.themoviedb.org/3"
+KEY = os.environ.get("TMDB_API_KEY")
+if not KEY:
+    sys.exit("TMDB_API_KEY is not set. Export it first; never put it in code or git.")
+
+session = requests.Session()
+session.headers.update({"Authorization": f"Bearer {KEY}"} if len(KEY) > 40 else {})
+
+
+def get(path, **params):
+    """GET with retry/backoff. Returns (status_code, json_or_None)."""
+    if len(KEY) <= 40:
+        params["api_key"] = KEY
+    for attempt in range(6):
+        try:
+            r = session.get(f"{BASE}{path}", params=params, timeout=20)
+        except requests.RequestException:
+            time.sleep(2 ** attempt)
+            continue
+        if r.status_code == 429:
+            time.sleep(float(r.headers.get("Retry-After", 2 ** attempt)))
+            continue
+        if r.status_code >= 500:
+            time.sleep(2 ** attempt)
+            continue
+        return r.status_code, (r.json() if r.status_code == 200 else None)
+    return -1, None  # gave up; recorded as a failure, not silently dropped
+
+
+def fetch_one(mid):
+    """Fetch and cache details + credits for one id. Returns (id, details_status, credits_status)."""
+    out = []
+    for kind, suffix in (("details", ""), ("credits", "/credits")):
+        f = RAW / f"{mid}_{kind}.json"
+        if f.exists():
+            out.append(200)
+            continue
+        status, js = get(f"/movie/{mid}{suffix}")
+        if js is not None:
+            f.write_text(json.dumps(js))
+        out.append(status)
+        time.sleep(0.05)  # be polite to the shared API
+    return mid, out[0], out[1]
+
+
+# ---------- 1. Read and classify every input row (vectorised) ----------
+raw = pd.read_csv(ROOT / "id_list.csv", dtype=str, keep_default_na=False,
+                  skip_blank_lines=False)
+led = pd.DataFrame({"csv_line": raw.index + 2, "raw_value": raw.iloc[:, 0].str.strip()})
+is_num = led.raw_value.str.fullmatch(r"\d+")
+led["clean_id"] = pd.to_numeric(led.raw_value.where(is_num), errors="coerce").astype("Int64")
+led["status"] = "to_fetch"
+led.loc[~is_num, "status"] = "invalid_value"
+led.loc[is_num & (led.clean_id <= 0), "status"] = "invalid_value"
+led.loc[led.status.eq("to_fetch") & led.clean_id.duplicated(), "status"] = "duplicate_row"
+
+# ---------- 2. Rescue IMDb ids (tt...) via /find, if any ----------
+imdb = led.raw_value.str.fullmatch(r"tt\d+")
+for i in led.index[imdb]:  # a handful of rows, network-bound, not analytics
+    s, js = get(f"/find/{led.at[i, 'raw_value']}", external_source="imdb_id")
+    hits = (js or {}).get("movie_results", [])
+    if hits:
+        led.at[i, "clean_id"] = hits[0]["id"]
+        led.at[i, "status"] = "to_fetch_via_imdb"
+        led.at[i, "raw_value"] += f" -> {hits[0]['id']}"
+# a rescued id might duplicate another row
+rescued = led.status.eq("to_fetch_via_imdb")
+led.loc[rescued & led.clean_id.isin(led.loc[led.status.eq("to_fetch"), "clean_id"]),
+        "status"] = "duplicate_row"
+
+# ---------- 3. Fetch unique ids concurrently, with cache ----------
+ids = led.loc[led.status.isin(["to_fetch", "to_fetch_via_imdb"]), "clean_id"].astype(int).unique()
+print(f"Fetching {len(ids)} unique ids (cached ones are skipped)...")
+t0 = time.perf_counter()
+with ThreadPoolExecutor(max_workers=4) as ex:
+    res = pd.DataFrame(list(ex.map(fetch_one, ids)),
+                       columns=["clean_id", "details_http", "credits_http"])
+print(f"Fetch took {time.perf_counter() - t0:.1f}s")
+
+led = led.merge(res.astype({"clean_id": "Int64"}), on="clean_id", how="left", validate="m:1")
+ok = led.details_http.eq(200) & led.credits_http.eq(200)
+led.loc[led.status.str.startswith("to_fetch"), "status"] = (
+    ok.map({True: "fetched_ok", False: "fetch_failed"})[led.status.str.startswith("to_fetch")])
+assert len(led) == len(raw), "ledger must have exactly one row per input row"
+led.to_csv(ROOT / "data" / "id_ledger.csv", index=False)
+print(led.status.value_counts().to_string())
+
+# ---------- 4. Flatten cached JSON into tidy tables ----------
+good = led.loc[led.status.eq("fetched_ok"), "clean_id"].astype(int).unique()
+det = [json.loads((RAW / f"{m}_details.json").read_text()) for m in good]
+cred = [json.loads((RAW / f"{m}_credits.json").read_text()) for m in good]
+
+movies = pd.json_normalize(det, sep="_")
+
+
+def _join(v):
+    """Flatten a list of dicts or strings into 'a|b|c'; leave non-lists alone."""
+    if not isinstance(v, list):
+        return v
+    return "|".join(str(d.get("name", d)) if isinstance(d, dict) else str(d) for d in v)
+
+
+# keep nested lists as compact strings so the grain stays one row per movie
+list_cols = movies.columns[movies.map(lambda v: isinstance(v, list)).any()]
+movies[list_cols] = movies[list_cols].map(_join)
+movies = movies.rename(columns={"id": "movie_id"})
+assert movies.movie_id.is_unique and len(movies) == len(good)
+movies.to_csv(ROOT / "data" / "movies.csv", index=False)
+
+
+# json_normalize's meta "id" collides with the person "id", so rename carefully
+for key in ("cast", "crew"):
+    t = pd.json_normalize(cred, record_path=key, meta=[["id"]], sep="_", meta_prefix="m_")
+    t = t.rename(columns={"id": "person_id", "m_id": "movie_id"})
+    t.to_csv(ROOT / "data" / f"{key}.csv", index=False)
+    print(f"{key}: {len(t)} rows for {t.movie_id.nunique()} movies")
+print(f"movies: {len(movies)} rows. Done.")
