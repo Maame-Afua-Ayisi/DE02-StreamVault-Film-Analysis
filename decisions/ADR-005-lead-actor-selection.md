@@ -1,104 +1,44 @@
+# ADR-005: Selection of Lead-Billed Actors
 
+**Status:** Accepted  
+**Date:** 20 November 2026
 
-\# ADR-005: Lead Actor Selection Using Cast Billing Order
+## Context
 
+The project needs a consistent way to identify actors who appear in leading roles across the candidate films.
 
+The available cast information includes a billing order for each actor. This indicates the order in which actors are listed in the film credits.
 
-\*\*Status:\*\* Accepted  
+## Decision
 
-\*\*Date:\*\* 20 November 2026
+Use the first five billing positions (`order <= 4`) as a consistent way to identify lead-billed actors.
 
+Compare the results across all years and films released from 2000 onward.
 
+## Alternatives Considered
 
-\## Context
+1. **Use every cast member:** This includes supporting actors and very small roles, making it harder to identify leading actors.
+2. **Use only the first-billed actor:** This may overlook other important leading actors.
+3. **Manually select lead actors:** This would require subjective decisions and make the process harder to repeat.
 
+The first five billing positions provide a consistent and repeatable approach.
 
+## Evidence
 
-The StreamVault analysis needs to identify actors who appear consistently in commercially successful candidate films.
+The analysis covered:
 
+- 112 successfully retrieved films.
+- 560 cast records from the first five billing positions.
+- Results across all years and from 2000 onward.
 
+## Consequences and Limitations
 
-The TMDb credits response provides a cast billing order through the `order` field. However, the brief does not specify how many cast members should count as lead actors.
+This approach makes the analysis repeatable, including when the candidate list grows to approximately 500 films.
 
+However:
 
+- Billing order does not always identify the actual lead actor.
+- Revenue is associated with each selected actor's films, so the same film's revenue may be counted for several actors.
+- The results show historical associations, not proof that an actor caused a film to perform well.
 
-Including every credited cast member would make it difficult to distinguish principal performers from supporting and minor roles.
-
-
-
-\## Decision
-
-
-
-Use the first five cast billing positions in each film as a practical proxy for lead actors.
-
-
-
-The analysis filters cast records using:
-
-
-
-`order <= 4`
-
-
-
-The selected cast records are then joined to movie-level financial information to compare actor appearances and associated film performance across:
-
-
-
-\- All years.
-
-\- 2000 onward.
-
-
-
-\## Alternatives Considered
-
-
-
-\- \*\*Include every credited cast member:\*\* Rejected because minor and supporting roles would be treated equally with principal performers.
-
-\- \*\*Use only the first billed actor:\*\* Rejected because this could exclude other important leading performers in ensemble films.
-
-\- \*\*Manually identify lead actors for every film:\*\* Rejected because this would require subjective research and would be difficult to repeat consistently across approximately 500 candidates.
-
-
-
-\## Consequences
-
-
-
-\- The analysis uses a consistent selection rule across all retrieved films.
-
-\- The first five billing positions produce 560 cast records across 112 movies.
-
-\- Actor appearances can be compared across the two reporting periods.
-
-\- The method is repeatable when Adjoa processes a larger candidate list.
-
-
-
-\## Risks and Limitations
-
-
-
-Cast billing order is only a proxy for lead roles. It does not always identify the most commercially influential performer or accurately represent ensemble films.
-
-
-
-Full movie revenue is attributed to each selected actor. Therefore, revenue totals overlap when multiple actors appear in the same film.
-
-
-
-The results show historical associations within the candidate sample. They do not prove that an actor caused a film's financial performance or guarantee future commercial success.
-
-
-
-If the first five billing positions do not accurately represent the principal performers, some relevant actors may be excluded and some supporting performers may be included.
-
-
-
-The selection rule should therefore be treated as a consistent analytical assumption, not a definitive classification of lead actors.
-
-
-
+These limitations should be considered when interpreting the actor rankings.

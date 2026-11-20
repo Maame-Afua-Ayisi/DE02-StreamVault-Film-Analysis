@@ -96,7 +96,7 @@ The checks can also be extended as additional data sources and validation rules 
 
 
 
-\## 5. Limitations
+## 5. Limitations
 
 
 
@@ -116,7 +116,7 @@ The current report checks the supplied candidate file; it cannot identify missin
 
 
 
-\## 6. How to run
+## 6. How to run
 
 
 

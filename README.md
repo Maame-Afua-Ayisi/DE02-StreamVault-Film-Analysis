@@ -181,7 +181,7 @@ The project includes an automated report to help Adjoa check the quality of futu
 
 The report brings important checks together in one place, making it easier to spot missing films, repeated IDs and other problems.
 
-A performance test was also carried out using 500 sample films. The report took a median of approximately 1.36 seconds to generate in that test. The sample was created for testing and does not represent 500 additional films retrieved from TMDb.
+A performance test was also carried out using 500 sample films. The report took a median of approximately 1.58 seconds across five measured runs in that test. The sample was created for testing and does not represent 500 additional films retrieved from TMDb.
 
 More details are available in `improvement.md`.
 
