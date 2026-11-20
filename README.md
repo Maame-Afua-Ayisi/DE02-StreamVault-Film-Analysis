@@ -1,54 +1,57 @@
 # StreamVault Film Licensing Analysis
 
-## Project Overview
+## 1. Project Overview
 
 This project analyses films that StreamVault, a streaming service, is considering for licensing.
 
-The aim is to help the company decide which films and franchises deserve further attention before spending its $14 million licensing budget.
+The aim is to help the company decide which films and franchises deserve further attention before committing its $14 million licensing budget.
 
-The analysis looks at:
-- How well different film franchises performed.
-- Films that have no recorded franchise membership.
-- Directors and actors who appear across the films.
-- How the results compare when older films are excluded.
+The analysis examines:
 
-The project uses film information from The Movie Database (TMDb).
+- Historical financial performance across film franchises.
+- Films with no recorded franchise membership.
+- Directors and actors appearing across the candidate films.
+- Differences in results when older films are excluded.
+- Data quality issues that could affect the reliability of the analysis.
 
-It is designed so the analysis can be repeated when StreamVault receives a larger list of films.
+Film information is retrieved from The Movie Database (TMDb).
 
-## Project Structure
+The project is designed to support repeatable analysis when StreamVault receives larger candidate lists.
+
+## 2. Project Structure
 
 ```text
 DE02-StreamVault-Film-Analysis/
 │
 ├── data/
-│   ├── raw/          Original information retrieved
-│   └── processed/    Cleaned information used for analysis
+│   ├── raw/             Original information retrieved from TMDb
+│   └── processed/       Prepared information used for analysis
 │
-├── decisions/        Important project decisions
-├── docs/             Data-quality findings
-├── reports/          Generated reports
-├── src/              Python scripts
-├── tests/            Performance test
+├── decisions/           Architecture Decision Records (ADRs)
+├── docs/                Data reconciliation and quality documentation
+├── reports/             Generated reports and analysis evidence
+├── src/                 Python scripts
+├── tests/               Performance testing
 │
 ├── id_list.csv
 ├── client_memo.md
+├── deal_notes.md
 ├── improvement.md
 ├── requirements.txt
 └── README.md
 ```
 
-## Tools Used
+## 3. Tools and Technologies
 
-- **Python:** Used to carry out the analysis.
-- **Pandas and NumPy:** Used to organise and work with the information.
-- **Requests:** Used to retrieve information from TMDb.
-- **TMDb:** Provides film, cast and crew information.
-- **Git and GitHub:** Used to manage and store the project.
+- **Python:** Used for data extraction, preparation, validation and analysis.
+- **Pandas:** Used to organise, clean and analyse tabular data.
+- **Requests:** Used to retrieve information from the TMDb API.
+- **TMDb API:** Provides movie, cast and crew information.
+- **Git and GitHub:** Used for version control and project management.
 
-## How to Set Up the Project
+## 4. Project Setup
 
-### 1. Download the project
+### 4.1 Clone the repository
 
 Open Git Bash and run:
 
@@ -57,22 +60,22 @@ git clone https://github.com/Maame-Afua-Ayisi/DE02-StreamVault-Film-Analysis.git
 cd DE02-StreamVault-Film-Analysis
 ```
 
-### 2. Create and activate a virtual environment
+### 4.2 Create and activate a virtual environment
 
 ```bash
 python -m venv venv
 source venv/Scripts/activate
 ```
 
-### 3. Install the required packages
+### 4.3 Install the required packages
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Add your TMDb API key
+### 4.4 Configure the TMDb API key
 
-A TMDb API key is needed to retrieve film information.
+A TMDb API key is required to retrieve movie information.
 
 In Git Bash, run:
 
@@ -80,15 +83,15 @@ In Git Bash, run:
 export TMDB_API_KEY="your_api_key_here"
 ```
 
-Replace the example with your own key.
+Replace the example with your own API key.
 
-**Do not upload your API key to GitHub or share it publicly.**
+**Never upload your API key to GitHub or share it publicly.**
 
-## How to Run the Project
+## 5. Running the Project
 
-Run the following commands from the main project folder.
+Run the scripts from the main project directory, in the order shown below.
 
-### Step 1: Check the film list and retrieve film information
+### Step 1: Inspect and reconcile the candidate list
 
 ```bash
 python src/inspect_input.py
@@ -97,17 +100,19 @@ python src/investigate_failed_ids.py
 python src/reconcile_candidate_ids.py
 ```
 
-These scripts check the original film list, retrieve available film information and identify problems such as missing or repeated IDs.
+These scripts examine the original candidate list, retrieve available movie information and investigate problems such as blank, repeated, invalid or unsuccessful IDs.
 
-### Step 2: Retrieve actors and crew information
+The extraction script includes retry and backoff handling for temporary API failures.
+
+### Step 2: Retrieve cast and crew information
 
 ```bash
 python src/extract_credits.py
 ```
 
-This retrieves information about the actors and crew members involved in the films.
+This retrieves cast and crew information for the successfully retrieved movies.
 
-### Step 3: Check and prepare the information
+### Step 3: Profile, validate and prepare the data
 
 ```bash
 python src/profile_movies.py
@@ -116,9 +121,33 @@ python src/build_analysis_dataset.py
 python src/validate_relationships.py
 ```
 
-These scripts check the information, prepare it for analysis and make sure the film, actor and crew records match correctly.
+These scripts examine data completeness, identify potential outliers, prepare the analysis dataset and check relationships between movie, cast and crew records.
 
-### Step 4: Analyse the films
+The movie profiling script also creates:
+
+```text
+reports/potential_outliers.csv
+```
+
+This contains values flagged by the Interquartile Range (IQR) method. These are potential outliers for investigation, not automatically confirmed errors.
+
+### Step 4: Spot-check the extracted information
+
+```bash
+python src/spot_check_api.py
+```
+
+This script retrieves a reproducible sample of five movies again from TMDb and compares selected movie details and cast and crew identifiers with the previously extracted information.
+
+The results are saved in:
+
+```text
+reports/api_spot_check.md
+```
+
+The spot-check provides evidence for the sampled records; it does not independently verify every extracted record.
+
+### Step 5: Analyse the films
 
 ```bash
 python src/analyse_franchises.py
@@ -128,9 +157,9 @@ python src/analyse_cast.py
 python src/analyse_lead_actors.py
 ```
 
-These scripts examine franchise performance, individual-title candidates, directors and actors.
+These scripts examine franchise performance, films without recorded collection membership, directors, cast members and lead-billed actors.
 
-### Step 5: Compare the results
+### Step 6: Compare the results
 
 ```bash
 python src/compare_franchise_periods.py
@@ -140,63 +169,101 @@ python src/compare_cast_periods.py
 python src/compare_franchise_results.py
 ```
 
-The results are compared across all years and for films released from 2000 onward.
+The comparisons examine results across all years and for films released from 2000 onward.
 
-### Step 6: Create the data-quality report
+### Step 7: Generate the data quality report
 
 ```bash
 python src/generate_data_quality_report.py
 ```
 
-This creates an updated report at:
+This generates:
 
 ```text
 reports/data_quality_report.md
 ```
 
-The report summarises the number of films retrieved, missing information and other issues found during the checks.
+The report summarises extraction results, candidate reconciliation, data completeness and relationship validation.
 
-## Important Findings and Limitations
+The separate outlier and API spot-check reports provide additional evidence.
 
-The analysis found that:
+## 6. Important Findings and Limitations
 
-- The supplied film list contains 126 rows, although the brief refers to 127 films.
+The analysis established that:
+
+- The supplied candidate list contains 126 rows, although the original brief refers to 127 films.
 - Information was successfully retrieved for 112 films.
-- Five film IDs could not be found.
-- Some IDs were repeated, blank or in an unexpected format.
-- Some films have no recorded franchise membership. This does not automatically mean they are standalone films.
-- Older films have not been adjusted for inflation.
+- Five movie requests failed.
+- The candidate list contained blank, repeated, non-numeric and non-positive identifiers.
+- Six duplicate positive numeric occurrences were identified.
+- Sixteen films have no recorded collection membership. This does not automatically mean they are standalone films.
+- The extracted movie details contain no duplicate movie IDs.
+- Relationship validation found no cast or crew movie IDs missing from the movie details dataset.
+- The API spot-check completed 35 checks across five sampled movies, with no mismatches or API errors.
+- The outlier analysis identified seven potential outlier records across budget, revenue and runtime.
 
-Most importantly, cinema earnings and production costs do not tell us how much StreamVault should pay to license a film.
+The analysis also has important limitations:
 
-The full findings are available in `docs/data_reconciliation.md`.
+- Financial values represent historical theatrical budgets and revenues, not licensing costs or streaming performance.
+- Financial values have not been adjusted for inflation.
+- Historical theatrical performance does not guarantee future streaming demand.
+- Missing collection information does not prove that a film is standalone.
+- The analysis does not independently verify studio ownership, licensing rights or availability.
+- Failed movie requests and unresolved candidate records may affect the completeness of the assessment.
 
-## Project Decisions
+The detailed findings are available in `docs/data_reconciliation.md` and `reports/data_quality_report.md`.
 
-The `decisions/` folder explains the important choices made during the project, including how the original film list was handled, how the information was organised and how lead-billed actors were selected.
+## 7. Project Decisions
 
-## Additional Improvement
+The `decisions/` folder contains Architecture Decision Records (ADRs).
 
-The project includes an automated report to help Adjoa check the quality of future film lists.
+These explain important technical and analytical decisions, including data handling, the organisation of the analysis and the selection of lead-billed actors.
 
-The report brings important checks together in one place, making it easier to spot missing films, repeated IDs and other problems.
+Each record documents the reasoning behind a decision, alternatives considered and relevant consequences.
 
-A performance test was also carried out using 500 sample films. The report took a median of approximately 1.58 seconds across five measured runs in that test. The sample was created for testing and does not represent 500 additional films retrieved from TMDb.
+## 8. Additional Improvement
 
-More details are available in `improvement.md`.
+The project includes an additional data quality reporting improvement to help Adjoa assess future candidate lists.
 
-## Final Deliverables
+The improvement brings important data checks together in a report, making it easier to identify missing information, repeated IDs and other data quality problems.
 
-This project includes:
+A performance test was also conducted using 500 sample candidate films.
 
-1. An examination of the original film list and its problems.
-2. Python scripts for retrieving and analysing film information.
-3. Written explanations of important project decisions.
-4. A recommendation memo for Kwame in `client_memo.md`.
-5. An additional reporting improvement for future film lists in `improvement.md`.
+Across five measured runs, the report generation process had a median execution time of approximately 1.58 seconds.
 
-## Conclusion
+The benchmark used synthetic test data. It did not involve retrieving 500 additional films from TMDb.
 
-The analysis helps StreamVault identify promising franchises and individual films for further discussion.
+Further details are available in `improvement.md` and `reports/benchmark_500_candidates.md`.
 
-However, the results are based on historical cinema performance. StreamVault should confirm film availability, licensing rights, prices and expected viewer interest before making its final decision.
+## 9. Commercial Deliverables
+
+The project includes two documents supporting the licensing decision:
+
+- **`client_memo.md`:** Communicates the main findings and recommendation to Kwame Boateng.
+- **`deal_notes.md`:** Provides practical negotiation priorities, questions for studios and commercial risks to investigate before agreeing to licensing terms.
+
+These documents distinguish historical analytical evidence from commercial information that still needs to be obtained.
+
+## 10. Final Deliverables
+
+The repository contains:
+
+1. An examination and reconciliation of the original candidate list.
+2. Python scripts for retrieving, preparing, validating and analysing movie information.
+3. API retry handling and spot-checking.
+4. Data quality profiling and outlier analysis.
+5. Written Architecture Decision Records.
+6. A licensing recommendation memo for Kwame.
+7. Commercial deal notes to support studio negotiations.
+8. An additional data quality reporting improvement.
+9. A performance benchmark using 500 synthetic candidate records.
+
+## 11. Conclusion
+
+The analysis helps StreamVault identify promising franchises and individual film candidates for further consideration.
+
+The findings provide a basis for prioritising licensing discussions, but they do not establish which deal will generate the highest return.
+
+Before committing the $14 million budget, StreamVault should verify film availability, licensing rights, acquisition prices, contractual terms and expected streaming audience demand.
+
+The final licensing decision should combine the historical evidence in this project with commercial due diligence.
