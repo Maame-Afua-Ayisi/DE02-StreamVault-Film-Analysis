@@ -8,13 +8,67 @@ import pandas as pd
 API_KEY = os.getenv("TMDB_API_KEY")
 BASE_URL = "https://api.themoviedb.org/3"
 
+MAX_ATTEMPTS = 4
+BASE_DELAY = 1
+
 if not API_KEY:
     raise EnvironmentError("TMDB_API_KEY is not configured.")
 
-# 2. Load the original candidate list
+
+# 2. Reusable request function with retry and backoff
+def request_with_retry(session, url):
+    for attempt in range(MAX_ATTEMPTS):
+        try:
+            response = session.get(url, timeout=30)
+
+        except (requests.Timeout, requests.ConnectionError):
+            if attempt == MAX_ATTEMPTS - 1:
+                raise
+
+            delay = BASE_DELAY * (2 ** attempt)
+
+            print(
+                f"Connection problem. "
+                f"Retrying in {delay} seconds..."
+            )
+
+            time.sleep(delay)
+            continue
+
+        # Retry rate-limit and temporary server errors.
+        if response.status_code == 429 or 500 <= response.status_code < 600:
+            if attempt == MAX_ATTEMPTS - 1:
+                return response
+
+            retry_after = response.headers.get("Retry-After")
+
+            if retry_after:
+                try:
+                    delay = float(retry_after)
+                except ValueError:
+                    delay = BASE_DELAY * (2 ** attempt)
+            else:
+                delay = BASE_DELAY * (2 ** attempt)
+
+            print(
+                f"HTTP {response.status_code}. "
+                f"Retrying in {delay} seconds..."
+            )
+
+            response.close()
+            time.sleep(delay)
+            continue
+
+        # Return successful responses and permanent errors.
+        return response
+
+    raise RuntimeError("Request attempts exhausted.")
+
+
+# 3. Load the original candidate list
 df = pd.read_csv("id_list.csv", dtype={"tmdb_id": "string"})
 
-# 3. Prepare the identifiers
+# 4. Prepare the identifiers
 ids = df["tmdb_id"].str.strip()
 numeric_ids = pd.to_numeric(ids, errors="coerce")
 
@@ -27,11 +81,11 @@ valid_mask = (
 
 valid_ids = numeric_ids.loc[valid_mask].astype("int64")
 
-# 4. Remove exact duplicate IDs for API extraction.
+# 5. Remove exact duplicate IDs for API extraction.
 # The original CSV remains unchanged.
 unique_ids = valid_ids.drop_duplicates()
 
-# 5. Prepare the API request
+# 6. Prepare the API request
 session = requests.Session()
 session.params = {"api_key": API_KEY}
 
@@ -40,12 +94,12 @@ failed_records = []
 
 start_time = time.perf_counter()
 
-# 6. Retrieve each movie's details
+# 7. Retrieve each movie's details
 for movie_id in unique_ids:
     url = f"{BASE_URL}/movie/{movie_id}"
 
     try:
-        response = session.get(url, timeout=30)
+        response = request_with_retry(session, url)
 
         if response.status_code == 404:
             failed_records.append({
@@ -73,7 +127,7 @@ for movie_id in unique_ids:
 
 end_time = time.perf_counter()
 
-# 7. Save the retrieved data
+# 8. Save the retrieved data
 movies = pd.json_normalize(movie_records)
 
 os.makedirs("data/raw", exist_ok=True)
@@ -89,7 +143,7 @@ pd.DataFrame(failed_records).to_csv(
     index=False
 )
 
-# 8. Report the extraction results
+# 9. Report the extraction results
 print("\nMOVIE EXTRACTION REPORT")
 print("-----------------------")
 print(f"Original CSV rows: {len(df)}")
@@ -98,3 +152,5 @@ print(f"Unique IDs requested: {len(unique_ids)}")
 print(f"Movies successfully retrieved: {len(movies)}")
 print(f"Failed requests: {len(failed_records)}")
 print(f"Execution time: {end_time - start_time:.2f} seconds")
+
+session.close()

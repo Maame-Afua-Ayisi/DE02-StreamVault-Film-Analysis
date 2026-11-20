@@ -1,0 +1,8 @@
+movie_id,title,field,value,lower_boundary,upper_boundary
+299534,Avengers: Endgame,budget,356000000,-129781250.0,317868750.0
+1865,Pirates of the Caribbean: On Stranger Tides,budget,379000000,-129781250.0,317868750.0
+299534,Avengers: Endgame,revenue,2942649778,-570681740.25,1738726473.75
+299536,Avengers: Infinity War,revenue,2052415039,-570681740.25,1738726473.75
+122,The Lord of the Rings: The Return of the King,runtime,201,72.625,185.625
+240,The Godfather Part II,runtime,202,72.625,185.625
+424,Schindler's List,runtime,195,72.625,185.625

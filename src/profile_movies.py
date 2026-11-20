@@ -59,4 +59,91 @@ print(
 
 # 6. Check duplicate movie records
 print("\nDUPLICATE MOVIE IDs")
-print(movies[movies["id"].duplicated(keep=False)][["id", "title"]])
+print(
+    movies[
+        movies["id"].duplicated(keep=False)
+    ][["id", "title"]]
+)
+
+
+# 7. Identify potential outliers using the IQR method
+print("\nPOTENTIAL OUTLIER ANALYSIS")
+print("==========================")
+
+outlier_fields = {
+    "budget": "Budget",
+    "revenue": "Revenue",
+    "runtime": "Runtime"
+}
+
+outlier_records = []
+
+for column, label in outlier_fields.items():
+
+    # Exclude missing and zero values.
+    values = movies.loc[
+        movies[column].notna() & (movies[column] > 0),
+        column
+    ]
+
+    if len(values) < 4:
+        print(f"\n{label}: Not enough positive values to assess.")
+        continue
+
+    # Calculate quartiles and IQR.
+    q1 = values.quantile(0.25)
+    q3 = values.quantile(0.75)
+    iqr = q3 - q1
+
+    lower_bound = q1 - (1.5 * iqr)
+    upper_bound = q3 + (1.5 * iqr)
+
+    # Identify values outside the IQR boundaries.
+    outliers = movies.loc[
+        movies[column].notna()
+        & (movies[column] > 0)
+        & (
+            (movies[column] < lower_bound)
+            | (movies[column] > upper_bound)
+        ),
+        ["id", "title", column]
+    ]
+
+    print(f"\n{label.upper()}")
+    print(f"Records assessed: {len(values)}")
+    print(f"First quartile (Q1): {q1:,.2f}")
+    print(f"Third quartile (Q3): {q3:,.2f}")
+    print(f"IQR: {iqr:,.2f}")
+    print(f"Lower boundary: {lower_bound:,.2f}")
+    print(f"Upper boundary: {upper_bound:,.2f}")
+    print(f"Potential outliers: {len(outliers)}")
+
+    if not outliers.empty:
+        print(outliers.to_string(index=False))
+
+    for _, row in outliers.iterrows():
+        outlier_records.append({
+            "movie_id": row["id"],
+            "title": row["title"],
+            "field": column,
+            "value": row[column],
+            "lower_boundary": lower_bound,
+            "upper_boundary": upper_bound
+        })
+
+
+# 8. Save potential outliers for further investigation
+outlier_report = pd.DataFrame(outlier_records)
+
+import os
+
+os.makedirs("reports", exist_ok=True)
+
+outlier_report.to_csv(
+    "reports/potential_outliers.csv",
+    index=False
+)
+
+print("\nOUTLIER ANALYSIS COMPLETE")
+print(f"Potential outlier records saved: {len(outlier_report)}")
+print("Report saved to reports/potential_outliers.csv")
